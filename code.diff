@@ -1,0 +1,2919 @@
+diff --git a/Makefile b/Makefile
+index 09d790c..04d74d5 100644
+--- a/Makefile
++++ b/Makefile
+@@ -181,6 +181,7 @@ UPROGS=\
+ 	_usertests\
+ 	_wc\
+ 	_zombie\
++	_lab1\
+ 
+ fs.img: mkfs README $(UPROGS)
+ 	./mkfs fs.img README $(UPROGS)
+diff --git a/cat.c b/cat.c
+index 5ddc820..68b1b8d 100644
+--- a/cat.c
++++ b/cat.c
+@@ -12,12 +12,12 @@ cat(int fd)
+   while((n = read(fd, buf, sizeof(buf))) > 0) {
+     if (write(1, buf, n) != n) {
+       printf(1, "cat: write error\n");
+-      exit();
++      exit(3);
+     }
+   }
+   if(n < 0){
+     printf(1, "cat: read error\n");
+-    exit();
++    exit(4);
+   }
+ }
+ 
+@@ -28,16 +28,16 @@ main(int argc, char *argv[])
+ 
+   if(argc <= 1){
+     cat(0);
+-    exit();
++    exit(1);
+   }
+ 
+   for(i = 1; i < argc; i++){
+     if((fd = open(argv[i], 0)) < 0){
+       printf(1, "cat: cannot open %s\n", argv[i]);
+-      exit();
++      exit(2);
+     }
+     cat(fd);
+     close(fd);
+   }
+-  exit();
++  exit(0);
+ }
+diff --git a/cuth b/cuth
+old mode 100755
+new mode 100644
+diff --git a/defs.h b/defs.h
+index 82fb982..d1934ca 100644
+--- a/defs.h
++++ b/defs.h
+@@ -104,7 +104,7 @@ int             pipewrite(struct pipe*, char*, int);
+ //PAGEBREAK: 16
+ // proc.c
+ int             cpuid(void);
+-void            exit(void);
++void            exit(int status);
+ int             fork(void);
+ int             growproc(int);
+ int             kill(int);
+@@ -117,7 +117,8 @@ void            sched(void);
+ void            setproc(struct proc*);
+ void            sleep(void*, struct spinlock*);
+ void            userinit(void);
+-int             wait(void);
++int             wait(int* status);
++int             waitpid(int pid, int* status, int options);
+ void            wakeup(void*);
+ void            yield(void);
+ 
+diff --git a/dot-bochsrc b/dot-bochsrc
+old mode 100755
+new mode 100644
+diff --git a/echo.c b/echo.c
+index 806dee0..eed68a0 100644
+--- a/echo.c
++++ b/echo.c
+@@ -9,5 +9,5 @@ main(int argc, char *argv[])
+ 
+   for(i = 1; i < argc; i++)
+     printf(1, "%s%s", argv[i], i+1 < argc ? " " : "\n");
+-  exit();
++  exit(0);
+ }
+diff --git a/forktest.c b/forktest.c
+index 8bc984d..a4b35ed 100644
+--- a/forktest.c
++++ b/forktest.c
+@@ -25,24 +25,24 @@ forktest(void)
+     if(pid < 0)
+       break;
+     if(pid == 0)
+-      exit();
++      exit(4);
+   }
+ 
+   if(n == N){
+     printf(1, "fork claimed to work N times!\n", N);
+-    exit();
++    exit(3);
+   }
+ 
+   for(; n > 0; n--){
+-    if(wait() < 0){
++    if(wait(NULL) < 0){
+       printf(1, "wait stopped early\n");
+-      exit();
++      exit(2);
+     }
+   }
+ 
+-  if(wait() != -1){
++  if(wait(NULL) != -1){
+     printf(1, "wait got too many\n");
+-    exit();
++    exit(1);
+   }
+ 
+   printf(1, "fork test OK\n");
+@@ -52,5 +52,5 @@ int
+ main(void)
+ {
+   forktest();
+-  exit();
++  exit(0);
+ }
+diff --git a/grep.c b/grep.c
+index adc4835..4be3256 100644
+--- a/grep.c
++++ b/grep.c
+@@ -43,24 +43,24 @@ main(int argc, char *argv[])
+ 
+   if(argc <= 1){
+     printf(2, "usage: grep pattern [file ...]\n");
+-    exit();
++    exit(1);
+   }
+   pattern = argv[1];
+ 
+   if(argc <= 2){
+     grep(pattern, 0);
+-    exit();
++    exit(2);
+   }
+ 
+   for(i = 2; i < argc; i++){
+     if((fd = open(argv[i], 0)) < 0){
+       printf(1, "grep: cannot open %s\n", argv[i]);
+-      exit();
++      exit(3);
+     }
+     grep(pattern, fd);
+     close(fd);
+   }
+-  exit();
++  exit(0);
+ }
+ 
+ // Regexp matcher from Kernighan & Pike,
+diff --git a/init.c b/init.c
+index 046b551..bc6547f 100644
+--- a/init.c
++++ b/init.c
+@@ -24,14 +24,14 @@ main(void)
+     pid = fork();
+     if(pid < 0){
+       printf(1, "init: fork failed\n");
+-      exit();
++      exit(2);
+     }
+     if(pid == 0){
+       exec("sh", argv);
+       printf(1, "init: exec sh failed\n");
+-      exit();
++      exit(1);
+     }
+-    while((wpid=wait()) >= 0 && wpid != pid)
++    while((wpid=wait(NULL)) >= 0 && wpid != pid)
+       printf(1, "zombie!\n");
+   }
+ }
+diff --git a/kill.c b/kill.c
+index 364f6af..875916c 100644
+--- a/kill.c
++++ b/kill.c
+@@ -9,9 +9,9 @@ main(int argc, char **argv)
+ 
+   if(argc < 2){
+     printf(2, "usage: kill pid...\n");
+-    exit();
++    exit(1);
+   }
+   for(i=1; i<argc; i++)
+     kill(atoi(argv[i]));
+-  exit();
++  exit(0);
+ }
+diff --git a/lab1.c b/lab1.c
+index 89668ce..2192a52 100644
+--- a/lab1.c
++++ b/lab1.c
+@@ -25,7 +25,7 @@ int main(int argc, char **argv) {
+     if(pid > 0)
+     {
+         waitpid(pid, NULL, 0);
+-        printf(1, "Grandpa says it's time to sleep! PID: %d\n", pid);
++        printf(1, "Grandpa says it's time to sleep! PID: %d\n", pid);:
+         exit(0);
+     }
+ 
+diff --git a/ln.c b/ln.c
+index cf8a64e..fb17c3b 100644
+--- a/ln.c
++++ b/ln.c
+@@ -7,9 +7,9 @@ main(int argc, char *argv[])
+ {
+   if(argc != 3){
+     printf(2, "Usage: ln old new\n");
+-    exit();
++    exit(1);
+   }
+   if(link(argv[1], argv[2]) < 0)
+     printf(2, "link %s %s: failed\n", argv[1], argv[2]);
+-  exit();
++  exit(0);
+ }
+diff --git a/ls.c b/ls.c
+index 2862913..6bf943b 100644
+--- a/ls.c
++++ b/ls.c
+@@ -77,9 +77,9 @@ main(int argc, char *argv[])
+ 
+   if(argc < 2){
+     ls(".");
+-    exit();
++    exit(1);
+   }
+   for(i=1; i<argc; i++)
+     ls(argv[i]);
+-  exit();
++  exit(0);
+ }
+diff --git a/mkdir.c b/mkdir.c
+index 6e4c954..2d90781 100644
+--- a/mkdir.c
++++ b/mkdir.c
+@@ -9,7 +9,7 @@ main(int argc, char *argv[])
+ 
+   if(argc < 2){
+     printf(2, "Usage: mkdir files...\n");
+-    exit();
++    exit(1);
+   }
+ 
+   for(i = 1; i < argc; i++){
+@@ -19,5 +19,5 @@ main(int argc, char *argv[])
+     }
+   }
+ 
+-  exit();
++  exit(0);
+ }
+diff --git a/pr.pl b/pr.pl
+old mode 100755
+new mode 100644
+diff --git a/printpcs b/printpcs
+old mode 100755
+new mode 100644
+diff --git a/proc.c b/proc.c
+index 806b1b1..84b335f 100644
+--- a/proc.c
++++ b/proc.c
+@@ -1,3 +1,5 @@
++#include <stddef.h>
++
+ #include "types.h"
+ #include "defs.h"
+ #include "param.h"
+@@ -8,61 +10,61 @@
+ #include "spinlock.h"
+ 
+ struct {
+-  struct spinlock lock;
+-  struct proc proc[NPROC];
++    struct spinlock lock;
++    struct proc proc[NPROC];
+ } ptable;
+ 
+ static struct proc *initproc;
+ 
+ int nextpid = 1;
++
+ extern void forkret(void);
++
+ extern void trapret(void);
+ 
+ static void wakeup1(void *chan);
+ 
+ void
+-pinit(void)
+-{
+-  initlock(&ptable.lock, "ptable");
++pinit(void) {
++    initlock(&ptable.lock, "ptable");
+ }
+ 
+ // Must be called with interrupts disabled
+ int
+ cpuid() {
+-  return mycpu()-cpus;
++    return mycpu() - cpus;
+ }
+ 
+ // Must be called with interrupts disabled to avoid the caller being
+ // rescheduled between reading lapicid and running through the loop.
+-struct cpu*
+-mycpu(void)
+-{
+-  int apicid, i;
+-  
+-  if(readeflags()&FL_IF)
+-    panic("mycpu called with interrupts enabled\n");
+-  
+-  apicid = lapicid();
+-  // APIC IDs are not guaranteed to be contiguous. Maybe we should have
+-  // a reverse map, or reserve a register to store &cpus[i].
+-  for (i = 0; i < ncpu; ++i) {
+-    if (cpus[i].apicid == apicid)
+-      return &cpus[i];
+-  }
+-  panic("unknown apicid\n");
++struct cpu *
++mycpu(void) {
++    int apicid, i;
++
++    if (readeflags() & FL_IF)
++        panic("mycpu called with interrupts enabled\n");
++
++    apicid = lapicid();
++    // APIC IDs are not guaranteed to be contiguous. Maybe we should have
++    // a reverse map, or reserve a register to store &cpus[i].
++    for (i = 0; i < ncpu; ++i) {
++        if (cpus[i].apicid == apicid)
++            return &cpus[i];
++    }
++    panic("unknown apicid\n");
+ }
+ 
+ // Disable interrupts so that we are not rescheduled
+ // while reading proc from the cpu structure
+-struct proc*
++struct proc *
+ myproc(void) {
+-  struct cpu *c;
+-  struct proc *p;
+-  pushcli();
+-  c = mycpu();
+-  p = c->proc;
+-  popcli();
+-  return p;
++    struct cpu *c;
++    struct proc *p;
++    pushcli();
++    c = mycpu();
++    p = c->proc;
++    popcli();
++    return p;
+ }
+ 
+ //PAGEBREAK: 32
+@@ -70,245 +72,295 @@ myproc(void) {
+ // If found, change state to EMBRYO and initialize
+ // state required to run in the kernel.
+ // Otherwise return 0.
+-static struct proc*
+-allocproc(void)
+-{
+-  struct proc *p;
+-  char *sp;
++static struct proc *
++allocproc(void) {
++    struct proc *p;
++    char *sp;
+ 
+-  acquire(&ptable.lock);
++    acquire(&ptable.lock);
+ 
+-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+-    if(p->state == UNUSED)
+-      goto found;
++    for (p = ptable.proc; p < &ptable.proc[NPROC]; p++)
++        if (p->state == UNUSED)
++            goto found;
+ 
+-  release(&ptable.lock);
+-  return 0;
++    release(&ptable.lock);
++    return 0;
+ 
+-found:
+-  p->state = EMBRYO;
+-  p->pid = nextpid++;
++    found:
++    p->state = EMBRYO;
++    p->pid = nextpid++;
+ 
+-  release(&ptable.lock);
++    release(&ptable.lock);
+ 
+-  // Allocate kernel stack.
+-  if((p->kstack = kalloc()) == 0){
+-    p->state = UNUSED;
+-    return 0;
+-  }
+-  sp = p->kstack + KSTACKSIZE;
++    // Allocate kernel stack.
++    if ((p->kstack = kalloc()) == 0) {
++        p->state = UNUSED;
++        return 0;
++    }
++    sp = p->kstack + KSTACKSIZE;
+ 
+-  // Leave room for trap frame.
+-  sp -= sizeof *p->tf;
+-  p->tf = (struct trapframe*)sp;
++    // Leave room for trap frame.
++    sp -= sizeof *p->tf;
++    p->tf = (struct trapframe *) sp;
+ 
+-  // Set up new context to start executing at forkret,
+-  // which returns to trapret.
+-  sp -= 4;
+-  *(uint*)sp = (uint)trapret;
++    // Set up new context to start executing at forkret,
++    // which returns to trapret.
++    sp -= 4;
++    *(uint *) sp = (uint) trapret;
+ 
+-  sp -= sizeof *p->context;
+-  p->context = (struct context*)sp;
+-  memset(p->context, 0, sizeof *p->context);
+-  p->context->eip = (uint)forkret;
++    sp -= sizeof *p->context;
++    p->context = (struct context *) sp;
++    memset(p->context, 0, sizeof *p->context);
++    p->context->eip = (uint) forkret;
+ 
+-  return p;
++    return p;
+ }
+ 
+ //PAGEBREAK: 32
+ // Set up first user process.
+ void
+-userinit(void)
+-{
+-  struct proc *p;
+-  extern char _binary_initcode_start[], _binary_initcode_size[];
+-
+-  p = allocproc();
+-  
+-  initproc = p;
+-  if((p->pgdir = setupkvm()) == 0)
+-    panic("userinit: out of memory?");
+-  inituvm(p->pgdir, _binary_initcode_start, (int)_binary_initcode_size);
+-  p->sz = PGSIZE;
+-  memset(p->tf, 0, sizeof(*p->tf));
+-  p->tf->cs = (SEG_UCODE << 3) | DPL_USER;
+-  p->tf->ds = (SEG_UDATA << 3) | DPL_USER;
+-  p->tf->es = p->tf->ds;
+-  p->tf->ss = p->tf->ds;
+-  p->tf->eflags = FL_IF;
+-  p->tf->esp = PGSIZE;
+-  p->tf->eip = 0;  // beginning of initcode.S
+-
+-  safestrcpy(p->name, "initcode", sizeof(p->name));
+-  p->cwd = namei("/");
+-
+-  // this assignment to p->state lets other cores
+-  // run this process. the acquire forces the above
+-  // writes to be visible, and the lock is also needed
+-  // because the assignment might not be atomic.
+-  acquire(&ptable.lock);
+-
+-  p->state = RUNNABLE;
+-
+-  release(&ptable.lock);
++userinit(void) {
++    struct proc *p;
++    extern char _binary_initcode_start[], _binary_initcode_size[];
++
++    p = allocproc();
++
++    initproc = p;
++    if ((p->pgdir = setupkvm()) == 0)
++        panic("userinit: out of memory?");
++    inituvm(p->pgdir, _binary_initcode_start, (int) _binary_initcode_size);
++    p->sz = PGSIZE;
++    memset(p->tf, 0, sizeof(*p->tf));
++    p->tf->cs = (SEG_UCODE << 3) | DPL_USER;
++    p->tf->ds = (SEG_UDATA << 3) | DPL_USER;
++    p->tf->es = p->tf->ds;
++    p->tf->ss = p->tf->ds;
++    p->tf->eflags = FL_IF;
++    p->tf->esp = PGSIZE;
++    p->tf->eip = 0;  // beginning of initcode.S
++
++    safestrcpy(p->name, "initcode", sizeof(p->name));
++    p->cwd = namei("/");
++
++    // this assignment to p->state lets other cores
++    // run this process. the acquire forces the above
++    // writes to be visible, and the lock is also needed
++    // because the assignment might not be atomic.
++    acquire(&ptable.lock);
++
++    p->state = RUNNABLE;
++
++    release(&ptable.lock);
+ }
+ 
+ // Grow current process's memory by n bytes.
+ // Return 0 on success, -1 on failure.
+ int
+-growproc(int n)
+-{
+-  uint sz;
+-  struct proc *curproc = myproc();
+-
+-  sz = curproc->sz;
+-  if(n > 0){
+-    if((sz = allocuvm(curproc->pgdir, sz, sz + n)) == 0)
+-      return -1;
+-  } else if(n < 0){
+-    if((sz = deallocuvm(curproc->pgdir, sz, sz + n)) == 0)
+-      return -1;
+-  }
+-  curproc->sz = sz;
+-  switchuvm(curproc);
+-  return 0;
++growproc(int n) {
++    uint sz;
++    struct proc *curproc = myproc();
++
++    sz = curproc->sz;
++    if (n > 0) {
++        if ((sz = allocuvm(curproc->pgdir, sz, sz + n)) == 0)
++            return -1;
++    } else if (n < 0) {
++        if ((sz = deallocuvm(curproc->pgdir, sz, sz + n)) == 0)
++            return -1;
++    }
++    curproc->sz = sz;
++    switchuvm(curproc);
++    return 0;
+ }
+ 
+ // Create a new process copying p as the parent.
+ // Sets up stack to return as if from system call.
+ // Caller must set state of returned proc to RUNNABLE.
+ int
+-fork(void)
+-{
+-  int i, pid;
+-  struct proc *np;
+-  struct proc *curproc = myproc();
+-
+-  // Allocate process.
+-  if((np = allocproc()) == 0){
+-    return -1;
+-  }
++fork(void) {
++    int i, pid;
++    struct proc *np;
++    struct proc *curproc = myproc();
++
++    // Allocate process.
++    if ((np = allocproc()) == 0) {
++        return -1;
++    }
+ 
+-  // Copy process state from proc.
+-  if((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0){
+-    kfree(np->kstack);
+-    np->kstack = 0;
+-    np->state = UNUSED;
+-    return -1;
+-  }
+-  np->sz = curproc->sz;
+-  np->parent = curproc;
+-  *np->tf = *curproc->tf;
++    // Copy process state from proc.
++    if ((np->pgdir = copyuvm(curproc->pgdir, curproc->sz)) == 0) {
++        kfree(np->kstack);
++        np->kstack = 0;
++        np->state = UNUSED;
++        return -1;
++    }
++    np->sz = curproc->sz;
++    np->parent = curproc;
++    *np->tf = *curproc->tf;
+ 
+-  // Clear %eax so that fork returns 0 in the child.
+-  np->tf->eax = 0;
++    // Clear %eax so that fork returns 0 in the child.
++    np->tf->eax = 0;
+ 
+-  for(i = 0; i < NOFILE; i++)
+-    if(curproc->ofile[i])
+-      np->ofile[i] = filedup(curproc->ofile[i]);
+-  np->cwd = idup(curproc->cwd);
++    for (i = 0; i < NOFILE; i++)
++        if (curproc->ofile[i])
++            np->ofile[i] = filedup(curproc->ofile[i]);
++    np->cwd = idup(curproc->cwd);
+ 
+-  safestrcpy(np->name, curproc->name, sizeof(curproc->name));
++    safestrcpy(np->name, curproc->name, sizeof(curproc->name));
+ 
+-  pid = np->pid;
++    pid = np->pid;
+ 
+-  acquire(&ptable.lock);
++    acquire(&ptable.lock);
+ 
+-  np->state = RUNNABLE;
++    np->state = RUNNABLE;
+ 
+-  release(&ptable.lock);
++    release(&ptable.lock);
+ 
+-  return pid;
++    return pid;
+ }
+ 
+ // Exit the current process.  Does not return.
+ // An exited process remains in the zombie state
+ // until its parent calls wait() to find out it exited.
+ void
+-exit(void)
+-{
+-  struct proc *curproc = myproc();
+-  struct proc *p;
+-  int fd;
+-
+-  if(curproc == initproc)
+-    panic("init exiting");
+-
+-  // Close all open files.
+-  for(fd = 0; fd < NOFILE; fd++){
+-    if(curproc->ofile[fd]){
+-      fileclose(curproc->ofile[fd]);
+-      curproc->ofile[fd] = 0;
++exit(int status) {
++    struct proc *curproc = myproc();
++    struct proc *p;
++    int fd;
++
++    curproc->status = status;
++
++    if (curproc == initproc)
++        panic("init exiting");
++
++    // Close all open files.
++    for (fd = 0; fd < NOFILE; fd++) {
++        if (curproc->ofile[fd]) {
++            fileclose(curproc->ofile[fd]);
++            curproc->ofile[fd] = 0;
++        }
+     }
+-  }
+ 
+-  begin_op();
+-  iput(curproc->cwd);
+-  end_op();
+-  curproc->cwd = 0;
++    begin_op();
++    iput(curproc->cwd);
++    end_op();
++    curproc->cwd = 0;
+ 
+-  acquire(&ptable.lock);
++    acquire(&ptable.lock);
+ 
+-  // Parent might be sleeping in wait().
+-  wakeup1(curproc->parent);
++    // Parent might be sleeping in wait().
++    wakeup1(curproc->parent);
+ 
+-  // Pass abandoned children to init.
+-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+-    if(p->parent == curproc){
+-      p->parent = initproc;
+-      if(p->state == ZOMBIE)
+-        wakeup1(initproc);
++    // Pass abandoned children to init.
++    for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
++        if (p->parent == curproc) {
++            p->parent = initproc;
++            if (p->state == ZOMBIE)
++                wakeup1(initproc);
++        }
+     }
+-  }
+ 
+-  // Jump into the scheduler, never to return.
+-  curproc->state = ZOMBIE;
+-  sched();
+-  panic("zombie exit");
++    // Jump into the scheduler, never to return.
++    curproc->state = ZOMBIE;
++    sched();
++    panic("zombie exit");
+ }
+ 
+ // Wait for a child process to exit and return its pid.
+ // Return -1 if this process has no children.
+ int
+-wait(void)
+-{
+-  struct proc *p;
+-  int havekids, pid;
+-  struct proc *curproc = myproc();
+-  
+-  acquire(&ptable.lock);
+-  for(;;){
+-    // Scan through table looking for exited children.
+-    havekids = 0;
+-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+-      if(p->parent != curproc)
+-        continue;
+-      havekids = 1;
+-      if(p->state == ZOMBIE){
+-        // Found one.
+-        pid = p->pid;
+-        kfree(p->kstack);
+-        p->kstack = 0;
+-        freevm(p->pgdir);
+-        p->pid = 0;
+-        p->parent = 0;
+-        p->name[0] = 0;
+-        p->killed = 0;
+-        p->state = UNUSED;
+-        release(&ptable.lock);
+-        return pid;
+-      }
+-    }
++wait(int *status) {
++    struct proc *p;
++    int havekids, pid;
++    struct proc *curproc = myproc();
+ 
+-    // No point waiting if we don't have any children.
+-    if(!havekids || curproc->killed){
+-      release(&ptable.lock);
+-      return -1;
++    acquire(&ptable.lock);
++    for (;;) {
++        // Scan through table looking for exited children.
++        havekids = 0;
++        for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
++            if (p->parent != curproc)
++                continue;
++            havekids = 1;
++            if (p->state == ZOMBIE) {
++                // Found one.
++                pid = p->pid;
++                kfree(p->kstack);
++                p->kstack = 0;
++                freevm(p->pgdir);
++                p->pid = 0;
++                p->parent = 0;
++                p->name[0] = 0;
++                p->killed = 0;
++                p->state = UNUSED;
++                release(&ptable.lock);
++                if (status != NULL)
++                    *status = p->status;
++                return pid;
++            }
++        }
++
++        // No point waiting if we don't have any children.
++        if (!havekids || curproc->killed) {
++            release(&ptable.lock);
++            return -1;
++        }
++
++        // Wait for children to exit.  (See wakeup1 call in proc_exit.)
++        sleep(curproc, &ptable.lock);  //DOC: wait-sleep
+     }
++}
+ 
+-    // Wait for children to exit.  (See wakeup1 call in proc_exit.)
+-    sleep(curproc, &ptable.lock);  //DOC: wait-sleep
+-  }
++// Wait for a child process to exit and return its pid.
++// Return -1 if this process has no children.
++int
++waitpid(int pidBeingSearchedFor, int *status, int options) {
++    struct proc *p;
++    int doesProcExist, pidFound;
++    struct proc *curproc = myproc();
++    acquire(&ptable.lock);
++    for (;;) {
++        // Scan through table looking for exited children.
++        doesProcExist = 0;
++        for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
++//            if(p->parent != curproc)
++//                continue;
++
++            if (p->pid != pidBeingSearchedFor)
++                continue;
++
++            doesProcExist = 1;
++            if (p->state == ZOMBIE) {
++                // Found one.
++                pidFound = p->pid;
++                kfree(p->kstack);
++                p->kstack = 0;
++                freevm(p->pgdir);
++                p->pid = 0;
++                p->parent = 0;
++                p->name[0] = 0;
++                p->killed = 0;
++                p->state = UNUSED;
++                release(&ptable.lock);
++                if (status != NULL)
++                    *status = p->status;
++                return pidFound;
++            }
++        }
++
++//        // No point waiting if we don't have any children.
++//        if(!havekids || curproc->killed){
++//            release(&ptable.lock);
++//            return -1;
++//        }
++
++        if (!doesProcExist || curproc->killed) {
++            release(&ptable.lock);
++            return -1;
++        }
++        // Wait for children to exit.  (See wakeup1 call in proc_exit.)
++        sleep(curproc, &ptable.lock);  //DOC: wait-sleep
++    }
+ }
+ 
+ //PAGEBREAK: 42
+@@ -320,39 +372,38 @@ wait(void)
+ //  - eventually that process transfers control
+ //      via swtch back to the scheduler.
+ void
+-scheduler(void)
+-{
+-  struct proc *p;
+-  struct cpu *c = mycpu();
+-  c->proc = 0;
+-  
+-  for(;;){
+-    // Enable interrupts on this processor.
+-    sti();
+-
+-    // Loop over process table looking for process to run.
+-    acquire(&ptable.lock);
+-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+-      if(p->state != RUNNABLE)
+-        continue;
+-
+-      // Switch to chosen process.  It is the process's job
+-      // to release ptable.lock and then reacquire it
+-      // before jumping back to us.
+-      c->proc = p;
+-      switchuvm(p);
+-      p->state = RUNNING;
+-
+-      swtch(&(c->scheduler), p->context);
+-      switchkvm();
+-
+-      // Process is done running for now.
+-      // It should have changed its p->state before coming back.
+-      c->proc = 0;
+-    }
+-    release(&ptable.lock);
++scheduler(void) {
++    struct proc *p;
++    struct cpu *c = mycpu();
++    c->proc = 0;
++
++    for (;;) {
++        // Enable interrupts on this processor.
++        sti();
++
++        // Loop over process table looking for process to run.
++        acquire(&ptable.lock);
++        for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
++            if (p->state != RUNNABLE)
++                continue;
++
++            // Switch to chosen process.  It is the process's job
++            // to release ptable.lock and then reacquire it
++            // before jumping back to us.
++            c->proc = p;
++            switchuvm(p);
++            p->state = RUNNING;
++
++            swtch(&(c->scheduler), p->context);
++            switchkvm();
++
++            // Process is done running for now.
++            // It should have changed its p->state before coming back.
++            c->proc = 0;
++        }
++        release(&ptable.lock);
+ 
+-  }
++    }
+ }
+ 
+ // Enter scheduler.  Must hold only ptable.lock
+@@ -363,137 +414,130 @@ scheduler(void)
+ // break in the few places where a lock is held but
+ // there's no process.
+ void
+-sched(void)
+-{
+-  int intena;
+-  struct proc *p = myproc();
+-
+-  if(!holding(&ptable.lock))
+-    panic("sched ptable.lock");
+-  if(mycpu()->ncli != 1)
+-    panic("sched locks");
+-  if(p->state == RUNNING)
+-    panic("sched running");
+-  if(readeflags()&FL_IF)
+-    panic("sched interruptible");
+-  intena = mycpu()->intena;
+-  swtch(&p->context, mycpu()->scheduler);
+-  mycpu()->intena = intena;
++sched(void) {
++    int intena;
++    struct proc *p = myproc();
++
++    if (!holding(&ptable.lock))
++        panic("sched ptable.lock");
++    if (mycpu()->ncli != 1)
++        panic("sched locks");
++    if (p->state == RUNNING)
++        panic("sched running");
++    if (readeflags() & FL_IF)
++        panic("sched interruptible");
++    intena = mycpu()->intena;
++    swtch(&p->context, mycpu()->scheduler);
++    mycpu()->intena = intena;
+ }
+ 
+ // Give up the CPU for one scheduling round.
+ void
+-yield(void)
+-{
+-  acquire(&ptable.lock);  //DOC: yieldlock
+-  myproc()->state = RUNNABLE;
+-  sched();
+-  release(&ptable.lock);
++yield(void) {
++    acquire(&ptable.lock);  //DOC: yieldlock
++    myproc()->state = RUNNABLE;
++    sched();
++    release(&ptable.lock);
+ }
+ 
+ // A fork child's very first scheduling by scheduler()
+ // will swtch here.  "Return" to user space.
+ void
+-forkret(void)
+-{
+-  static int first = 1;
+-  // Still holding ptable.lock from scheduler.
+-  release(&ptable.lock);
+-
+-  if (first) {
+-    // Some initialization functions must be run in the context
+-    // of a regular process (e.g., they call sleep), and thus cannot
+-    // be run from main().
+-    first = 0;
+-    iinit(ROOTDEV);
+-    initlog(ROOTDEV);
+-  }
+-
+-  // Return to "caller", actually trapret (see allocproc).
++forkret(void) {
++    static int first = 1;
++    // Still holding ptable.lock from scheduler.
++    release(&ptable.lock);
++
++    if (first) {
++        // Some initialization functions must be run in the context
++        // of a regular process (e.g., they call sleep), and thus cannot
++        // be run from main().
++        first = 0;
++        iinit(ROOTDEV);
++        initlog(ROOTDEV);
++    }
++
++    // Return to "caller", actually trapret (see allocproc).
+ }
+ 
+ // Atomically release lock and sleep on chan.
+ // Reacquires lock when awakened.
+ void
+-sleep(void *chan, struct spinlock *lk)
+-{
+-  struct proc *p = myproc();
+-  
+-  if(p == 0)
+-    panic("sleep");
+-
+-  if(lk == 0)
+-    panic("sleep without lk");
+-
+-  // Must acquire ptable.lock in order to
+-  // change p->state and then call sched.
+-  // Once we hold ptable.lock, we can be
+-  // guaranteed that we won't miss any wakeup
+-  // (wakeup runs with ptable.lock locked),
+-  // so it's okay to release lk.
+-  if(lk != &ptable.lock){  //DOC: sleeplock0
+-    acquire(&ptable.lock);  //DOC: sleeplock1
+-    release(lk);
+-  }
+-  // Go to sleep.
+-  p->chan = chan;
+-  p->state = SLEEPING;
+-
+-  sched();
+-
+-  // Tidy up.
+-  p->chan = 0;
+-
+-  // Reacquire original lock.
+-  if(lk != &ptable.lock){  //DOC: sleeplock2
+-    release(&ptable.lock);
+-    acquire(lk);
+-  }
++sleep(void *chan, struct spinlock *lk) {
++    struct proc *p = myproc();
++
++    if (p == 0)
++        panic("sleep");
++
++    if (lk == 0)
++        panic("sleep without lk");
++
++    // Must acquire ptable.lock in order to
++    // change p->state and then call sched.
++    // Once we hold ptable.lock, we can be
++    // guaranteed that we won't miss any wakeup
++    // (wakeup runs with ptable.lock locked),
++    // so it's okay to release lk.
++    if (lk != &ptable.lock) {  //DOC: sleeplock0
++        acquire(&ptable.lock);  //DOC: sleeplock1
++        release(lk);
++    }
++    // Go to sleep.
++    p->chan = chan;
++    p->state = SLEEPING;
++
++    sched();
++
++    // Tidy up.
++    p->chan = 0;
++
++    // Reacquire original lock.
++    if (lk != &ptable.lock) {  //DOC: sleeplock2
++        release(&ptable.lock);
++        acquire(lk);
++    }
+ }
+ 
+ //PAGEBREAK!
+ // Wake up all processes sleeping on chan.
+ // The ptable lock must be held.
+ static void
+-wakeup1(void *chan)
+-{
+-  struct proc *p;
++wakeup1(void *chan) {
++    struct proc *p;
+ 
+-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+-    if(p->state == SLEEPING && p->chan == chan)
+-      p->state = RUNNABLE;
++    for (p = ptable.proc; p < &ptable.proc[NPROC]; p++)
++        if (p->state == SLEEPING && p->chan == chan)
++            p->state = RUNNABLE;
+ }
+ 
+ // Wake up all processes sleeping on chan.
+ void
+-wakeup(void *chan)
+-{
+-  acquire(&ptable.lock);
+-  wakeup1(chan);
+-  release(&ptable.lock);
++wakeup(void *chan) {
++    acquire(&ptable.lock);
++    wakeup1(chan);
++    release(&ptable.lock);
+ }
+ 
+ // Kill the process with the given pid.
+ // Process won't exit until it returns
+ // to user space (see trap in trap.c).
+ int
+-kill(int pid)
+-{
+-  struct proc *p;
+-
+-  acquire(&ptable.lock);
+-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+-    if(p->pid == pid){
+-      p->killed = 1;
+-      // Wake process from sleep if necessary.
+-      if(p->state == SLEEPING)
+-        p->state = RUNNABLE;
+-      release(&ptable.lock);
+-      return 0;
++kill(int pid) {
++    struct proc *p;
++
++    acquire(&ptable.lock);
++    for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
++        if (p->pid == pid) {
++            p->killed = 1;
++            // Wake process from sleep if necessary.
++            if (p->state == SLEEPING)
++                p->state = RUNNABLE;
++            release(&ptable.lock);
++            return 0;
++        }
+     }
+-  }
+-  release(&ptable.lock);
+-  return -1;
++    release(&ptable.lock);
++    return -1;
+ }
+ 
+ //PAGEBREAK: 36
+@@ -501,34 +545,33 @@ kill(int pid)
+ // Runs when user types ^P on console.
+ // No lock to avoid wedging a stuck machine further.
+ void
+-procdump(void)
+-{
+-  static char *states[] = {
+-  [UNUSED]    "unused",
+-  [EMBRYO]    "embryo",
+-  [SLEEPING]  "sleep ",
+-  [RUNNABLE]  "runble",
+-  [RUNNING]   "run   ",
+-  [ZOMBIE]    "zombie"
+-  };
+-  int i;
+-  struct proc *p;
+-  char *state;
+-  uint pc[10];
+-
+-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+-    if(p->state == UNUSED)
+-      continue;
+-    if(p->state >= 0 && p->state < NELEM(states) && states[p->state])
+-      state = states[p->state];
+-    else
+-      state = "???";
+-    cprintf("%d %s %s", p->pid, state, p->name);
+-    if(p->state == SLEEPING){
+-      getcallerpcs((uint*)p->context->ebp+2, pc);
+-      for(i=0; i<10 && pc[i] != 0; i++)
+-        cprintf(" %p", pc[i]);
++procdump(void) {
++    static char *states[] = {
++            [UNUSED]    "unused",
++            [EMBRYO]    "embryo",
++            [SLEEPING]  "sleep ",
++            [RUNNABLE]  "runble",
++            [RUNNING]   "run   ",
++            [ZOMBIE]    "zombie"
++    };
++    int i;
++    struct proc *p;
++    char *state;
++    uint pc[10];
++
++    for (p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
++        if (p->state == UNUSED)
++            continue;
++        if (p->state >= 0 && p->state < NELEM(states) && states[p->state])
++            state = states[p->state];
++        else
++            state = "???";
++        cprintf("%d %s %s", p->pid, state, p->name);
++        if (p->state == SLEEPING) {
++            getcallerpcs((uint *) p->context->ebp + 2, pc);
++            for (i = 0; i < 10 && pc[i] != 0; i++)
++                cprintf(" %p", pc[i]);
++        }
++        cprintf("\n");
+     }
+-    cprintf("\n");
+-  }
+ }
+diff --git a/proc.h b/proc.h
+index 1647114..a06b921 100644
+--- a/proc.h
++++ b/proc.h
+@@ -49,6 +49,7 @@ struct proc {
+   struct file *ofile[NOFILE];  // Open files
+   struct inode *cwd;           // Current directory
+   char name[16];               // Process name (debugging)
++  int status;                  // Exit status
+ };
+ 
+ // Process memory is laid out contiguously, low addresses first:
+diff --git a/rm.c b/rm.c
+index 4fd33c8..1e6daec 100644
+--- a/rm.c
++++ b/rm.c
+@@ -9,7 +9,7 @@ main(int argc, char *argv[])
+ 
+   if(argc < 2){
+     printf(2, "Usage: rm files...\n");
+-    exit();
++    exit(1);
+   }
+ 
+   for(i = 1; i < argc; i++){
+@@ -19,5 +19,5 @@ main(int argc, char *argv[])
+     }
+   }
+ 
+-  exit();
++  exit(0);
+ }
+diff --git a/runoff b/runoff
+old mode 100755
+new mode 100644
+diff --git a/runoff1 b/runoff1
+old mode 100755
+new mode 100644
+diff --git a/sh.c b/sh.c
+index 054bab9..ca2ae37 100644
+--- a/sh.c
++++ b/sh.c
+@@ -65,7 +65,7 @@ runcmd(struct cmd *cmd)
+   struct redircmd *rcmd;
+ 
+   if(cmd == 0)
+-    exit();
++    exit(1);
+ 
+   switch(cmd->type){
+   default:
+@@ -74,7 +74,7 @@ runcmd(struct cmd *cmd)
+   case EXEC:
+     ecmd = (struct execcmd*)cmd;
+     if(ecmd->argv[0] == 0)
+-      exit();
++      exit(2);
+     exec(ecmd->argv[0], ecmd->argv);
+     printf(2, "exec %s failed\n", ecmd->argv[0]);
+     break;
+@@ -84,7 +84,7 @@ runcmd(struct cmd *cmd)
+     close(rcmd->fd);
+     if(open(rcmd->file, rcmd->mode) < 0){
+       printf(2, "open %s failed\n", rcmd->file);
+-      exit();
++      exit(6);
+     }
+     runcmd(rcmd->cmd);
+     break;
+@@ -93,7 +93,7 @@ runcmd(struct cmd *cmd)
+     lcmd = (struct listcmd*)cmd;
+     if(fork1() == 0)
+       runcmd(lcmd->left);
+-    wait();
++    wait(NULL);
+     runcmd(lcmd->right);
+     break;
+ 
+@@ -117,8 +117,8 @@ runcmd(struct cmd *cmd)
+     }
+     close(p[0]);
+     close(p[1]);
+-    wait();
+-    wait();
++    wait(NULL);
++    wait(NULL);
+     break;
+ 
+   case BACK:
+@@ -127,7 +127,7 @@ runcmd(struct cmd *cmd)
+       runcmd(bcmd->cmd);
+     break;
+   }
+-  exit();
++  exit(3);
+ }
+ 
+ int
+@@ -166,16 +166,16 @@ main(void)
+     }
+     if(fork1() == 0)
+       runcmd(parsecmd(buf));
+-    wait();
++    wait(NULL);
+   }
+-  exit();
++  exit(0);
+ }
+ 
+ void
+ panic(char *s)
+ {
+   printf(2, "%s\n", s);
+-  exit();
++  exit(5);
+ }
+ 
+ int
+diff --git a/show1 b/show1
+old mode 100755
+new mode 100644
+diff --git a/sign.pl b/sign.pl
+old mode 100755
+new mode 100644
+diff --git a/spinp b/spinp
+old mode 100755
+new mode 100644
+diff --git a/stressfs.c b/stressfs.c
+index c0a4743..46e0e66 100644
+--- a/stressfs.c
++++ b/stressfs.c
+@@ -43,7 +43,7 @@ main(int argc, char *argv[])
+     read(fd, data, sizeof(data));
+   close(fd);
+ 
+-  wait();
++  wait(NULL);
+ 
+-  exit();
++  exit(0);
+ }
+diff --git a/syscall.c b/syscall.c
+index ee85261..41a8c3c 100644
+--- a/syscall.c
++++ b/syscall.c
+@@ -101,6 +101,7 @@ extern int sys_sbrk(void);
+ extern int sys_sleep(void);
+ extern int sys_unlink(void);
+ extern int sys_wait(void);
++extern int sys_waitpid(void);
+ extern int sys_write(void);
+ extern int sys_uptime(void);
+ 
+@@ -108,6 +109,7 @@ static int (*syscalls[])(void) = {
+ [SYS_fork]    sys_fork,
+ [SYS_exit]    sys_exit,
+ [SYS_wait]    sys_wait,
++[SYS_waitpid] sys_waitpid,
+ [SYS_pipe]    sys_pipe,
+ [SYS_read]    sys_read,
+ [SYS_kill]    sys_kill,
+diff --git a/syscall.h b/syscall.h
+index bc5f356..374ff05 100644
+--- a/syscall.h
++++ b/syscall.h
+@@ -1,22 +1,23 @@
+ // System call numbers
+-#define SYS_fork    1
+-#define SYS_exit    2
+-#define SYS_wait    3
+-#define SYS_pipe    4
+-#define SYS_read    5
+-#define SYS_kill    6
+-#define SYS_exec    7
+-#define SYS_fstat   8
+-#define SYS_chdir   9
+-#define SYS_dup    10
+-#define SYS_getpid 11
+-#define SYS_sbrk   12
+-#define SYS_sleep  13
+-#define SYS_uptime 14
+-#define SYS_open   15
+-#define SYS_write  16
+-#define SYS_mknod  17
+-#define SYS_unlink 18
+-#define SYS_link   19
+-#define SYS_mkdir  20
+-#define SYS_close  21
++#define SYS_fork     1
++#define SYS_exit     2
++#define SYS_wait     3
++#define SYS_pipe     4
++#define SYS_read     5
++#define SYS_kill     6
++#define SYS_exec     7
++#define SYS_fstat    8
++#define SYS_chdir    9
++#define SYS_dup     10
++#define SYS_getpid  11
++#define SYS_sbrk    12
++#define SYS_sleep   13
++#define SYS_uptime  14
++#define SYS_open    15
++#define SYS_write   16
++#define SYS_mknod   17
++#define SYS_unlink  18
++#define SYS_link    19
++#define SYS_mkdir   20
++#define SYS_close   21
++#define SYS_waitpid 22
+\ No newline at end of file
+diff --git a/sysproc.c b/sysproc.c
+index 0686d29..ebccf84 100644
+--- a/sysproc.c
++++ b/sysproc.c
+@@ -14,16 +14,22 @@ sys_fork(void)
+ }
+ 
+ int
+-sys_exit(void)
++sys_exit(int status)
+ {
+-  exit();
++  exit(status);
+   return 0;  // not reached
+ }
+ 
+ int
+-sys_wait(void)
++sys_wait(int* status)
+ {
+-  return wait();
++  return wait(status);
++}
++
++int
++sys_waitpid(int pid, int* status, int options)
++{
++    return waitpid(pid, status, options);
+ }
+ 
+ int
+diff --git a/trap.c b/trap.c
+index 41c66eb..432ea5b 100644
+--- a/trap.c
++++ b/trap.c
+@@ -38,11 +38,11 @@ trap(struct trapframe *tf)
+ {
+   if(tf->trapno == T_SYSCALL){
+     if(myproc()->killed)
+-      exit();
++      exit(4);
+     myproc()->tf = tf;
+     syscall();
+     if(myproc()->killed)
+-      exit();
++      exit(3);
+     return;
+   }
+ 
+@@ -98,7 +98,7 @@ trap(struct trapframe *tf)
+   // (If it is still executing in the kernel, let it keep running
+   // until it gets to the regular system call return.)
+   if(myproc() && myproc()->killed && (tf->cs&3) == DPL_USER)
+-    exit();
++    exit(2);
+ 
+   // Force process to give up CPU on clock tick.
+   // If interrupts were on while locks held, would need to check nlock.
+@@ -108,5 +108,5 @@ trap(struct trapframe *tf)
+ 
+   // Check if the process has been killed since we yielded
+   if(myproc() && myproc()->killed && (tf->cs&3) == DPL_USER)
+-    exit();
++    exit(1);
+ }
+diff --git a/user.h b/user.h
+index 4f99c52..0931387 100644
+--- a/user.h
++++ b/user.h
+@@ -1,10 +1,13 @@
++#include <stddef.h>
++
+ struct stat;
+ struct rtcdate;
+ 
+ // system calls
+ int fork(void);
+-int exit(void) __attribute__((noreturn));
+-int wait(void);
++int exit(int status) __attribute__((noreturn));
++int wait(int* status);
++int waitpid(int pid, int* status, int options);
+ int pipe(int*);
+ int write(int, const void*, int);
+ int read(int, void*, int);
+diff --git a/usertests.c b/usertests.c
+index a1e97e7..2c2c128 100644
+--- a/usertests.c
++++ b/usertests.c
+@@ -21,19 +21,19 @@ iputtest(void)
+ 
+   if(mkdir("iputdir") < 0){
+     printf(stdout, "mkdir failed\n");
+-    exit();
++    exit(184);
+   }
+   if(chdir("iputdir") < 0){
+     printf(stdout, "chdir iputdir failed\n");
+-    exit();
++    exit(183);
+   }
+   if(unlink("../iputdir") < 0){
+     printf(stdout, "unlink ../iputdir failed\n");
+-    exit();
++    exit(182);
+   }
+   if(chdir("/") < 0){
+     printf(stdout, "chdir / failed\n");
+-    exit();
++    exit(181);
+   }
+   printf(stdout, "iput test ok\n");
+ }
+@@ -49,24 +49,24 @@ exitiputtest(void)
+   pid = fork();
+   if(pid < 0){
+     printf(stdout, "fork failed\n");
+-    exit();
++    exit(180);
+   }
+   if(pid == 0){
+     if(mkdir("iputdir") < 0){
+       printf(stdout, "mkdir failed\n");
+-      exit();
++      exit(179);
+     }
+     if(chdir("iputdir") < 0){
+       printf(stdout, "child chdir failed\n");
+-      exit();
++      exit(178);
+     }
+     if(unlink("../iputdir") < 0){
+       printf(stdout, "unlink ../iputdir failed\n");
+-      exit();
++      exit(177);
+     }
+-    exit();
++    exit(176);
+   }
+-  wait();
++  wait(NULL);
+   printf(stdout, "exitiput test ok\n");
+ }
+ 
+@@ -89,27 +89,27 @@ openiputtest(void)
+   printf(stdout, "openiput test\n");
+   if(mkdir("oidir") < 0){
+     printf(stdout, "mkdir oidir failed\n");
+-    exit();
++    exit(175);
+   }
+   pid = fork();
+   if(pid < 0){
+     printf(stdout, "fork failed\n");
+-    exit();
++    exit(174);
+   }
+   if(pid == 0){
+     int fd = open("oidir", O_RDWR);
+     if(fd >= 0){
+       printf(stdout, "open directory for write succeeded\n");
+-      exit();
++      exit(0);
+     }
+-    exit();
++    exit(172);
+   }
+   sleep(1);
+   if(unlink("oidir") != 0){
+     printf(stdout, "unlink failed\n");
+-    exit();
++    exit(171);
+   }
+-  wait();
++  wait(NULL);
+   printf(stdout, "openiput test ok\n");
+ }
+ 
+@@ -124,13 +124,13 @@ opentest(void)
+   fd = open("echo", 0);
+   if(fd < 0){
+     printf(stdout, "open echo failed!\n");
+-    exit();
++    exit(170);
+   }
+   close(fd);
+   fd = open("doesnotexist", 0);
+   if(fd >= 0){
+     printf(stdout, "open doesnotexist succeeded!\n");
+-    exit();
++    exit(0);
+   }
+   printf(stdout, "open test ok\n");
+ }
+@@ -147,16 +147,16 @@ writetest(void)
+     printf(stdout, "creat small succeeded; ok\n");
+   } else {
+     printf(stdout, "error: creat small failed!\n");
+-    exit();
++    exit(168);
+   }
+   for(i = 0; i < 100; i++){
+     if(write(fd, "aaaaaaaaaa", 10) != 10){
+       printf(stdout, "error: write aa %d new file failed\n", i);
+-      exit();
++      exit(167);
+     }
+     if(write(fd, "bbbbbbbbbb", 10) != 10){
+       printf(stdout, "error: write bb %d new file failed\n", i);
+-      exit();
++      exit(166);
+     }
+   }
+   printf(stdout, "writes ok\n");
+@@ -166,20 +166,20 @@ writetest(void)
+     printf(stdout, "open small succeeded ok\n");
+   } else {
+     printf(stdout, "error: open small failed!\n");
+-    exit();
++    exit(165);
+   }
+   i = read(fd, buf, 2000);
+   if(i == 2000){
+     printf(stdout, "read succeeded ok\n");
+   } else {
+     printf(stdout, "read failed\n");
+-    exit();
++    exit(164);
+   }
+   close(fd);
+ 
+   if(unlink("small") < 0){
+     printf(stdout, "unlink small failed\n");
+-    exit();
++    exit(163);
+   }
+   printf(stdout, "small file test ok\n");
+ }
+@@ -194,14 +194,14 @@ writetest1(void)
+   fd = open("big", O_CREATE|O_RDWR);
+   if(fd < 0){
+     printf(stdout, "error: creat big failed!\n");
+-    exit();
++    exit(162);
+   }
+ 
+   for(i = 0; i < MAXFILE; i++){
+     ((int*)buf)[0] = i;
+     if(write(fd, buf, 512) != 512){
+       printf(stdout, "error: write big file failed\n", i);
+-      exit();
++      exit(161);
+     }
+   }
+ 
+@@ -210,7 +210,7 @@ writetest1(void)
+   fd = open("big", O_RDONLY);
+   if(fd < 0){
+     printf(stdout, "error: open big failed!\n");
+-    exit();
++    exit(160);
+   }
+ 
+   n = 0;
+@@ -219,24 +219,24 @@ writetest1(void)
+     if(i == 0){
+       if(n == MAXFILE - 1){
+         printf(stdout, "read only %d blocks from big", n);
+-        exit();
++        exit(159);
+       }
+       break;
+     } else if(i != 512){
+       printf(stdout, "read failed %d\n", i);
+-      exit();
++      exit(158);
+     }
+     if(((int*)buf)[0] != n){
+       printf(stdout, "read content of block %d is %d\n",
+              n, ((int*)buf)[0]);
+-      exit();
++      exit(157);
+     }
+     n++;
+   }
+   close(fd);
+   if(unlink("big") < 0){
+     printf(stdout, "unlink big failed\n");
+-    exit();
++    exit(156);
+   }
+   printf(stdout, "big files ok\n");
+ }
+@@ -270,22 +270,22 @@ void dirtest(void)
+ 
+   if(mkdir("dir0") < 0){
+     printf(stdout, "mkdir failed\n");
+-    exit();
++    exit(155);
+   }
+ 
+   if(chdir("dir0") < 0){
+     printf(stdout, "chdir dir0 failed\n");
+-    exit();
++    exit(154);
+   }
+ 
+   if(chdir("..") < 0){
+     printf(stdout, "chdir .. failed\n");
+-    exit();
++    exit(153);
+   }
+ 
+   if(unlink("dir0") < 0){
+     printf(stdout, "unlink dir0 failed\n");
+-    exit();
++    exit(152);
+   }
+   printf(stdout, "mkdir test ok\n");
+ }
+@@ -296,7 +296,7 @@ exectest(void)
+   printf(stdout, "exec test\n");
+   if(exec("echo", echoargv) < 0){
+     printf(stdout, "exec echo failed\n");
+-    exit();
++    exit(151);
+   }
+ }
+ 
+@@ -310,7 +310,7 @@ pipe1(void)
+ 
+   if(pipe(fds) != 0){
+     printf(1, "pipe() failed\n");
+-    exit();
++    exit(150);
+   }
+   pid = fork();
+   seq = 0;
+@@ -321,10 +321,10 @@ pipe1(void)
+         buf[i] = seq++;
+       if(write(fds[1], buf, 1033) != 1033){
+         printf(1, "pipe1 oops 1\n");
+-        exit();
++        exit(149);
+       }
+     }
+-    exit();
++    exit(148);
+   } else if(pid > 0){
+     close(fds[1]);
+     total = 0;
+@@ -343,13 +343,13 @@ pipe1(void)
+     }
+     if(total != 5 * 1033){
+       printf(1, "pipe1 oops 3 total %d\n", total);
+-      exit();
++      exit(147);
+     }
+     close(fds[0]);
+-    wait();
++    wait(NULL);
+   } else {
+     printf(1, "fork() failed\n");
+-    exit();
++    exit(146);
+   }
+   printf(1, "pipe1 ok\n");
+ }
+@@ -394,9 +394,9 @@ preempt(void)
+   kill(pid2);
+   kill(pid3);
+   printf(1, "wait... ");
+-  wait();
+-  wait();
+-  wait();
++  wait(NULL);
++  wait(NULL);
++  wait(NULL);
+   printf(1, "preempt ok\n");
+ }
+ 
+@@ -413,12 +413,12 @@ exitwait(void)
+       return;
+     }
+     if(pid){
+-      if(wait() != pid){
++      if(wait(NULL) != pid){
+         printf(1, "wait wrong pid\n");
+         return;
+       }
+     } else {
+-      exit();
++      exit(145);
+     }
+   }
+   printf(1, "exitwait ok\n");
+@@ -447,13 +447,13 @@ mem(void)
+     if(m1 == 0){
+       printf(1, "couldn't allocate mem?!!\n");
+       kill(ppid);
+-      exit();
++      exit(144);
+     }
+     free(m1);
+     printf(1, "mem ok\n");
+-    exit();
++    exit(0);
+   } else {
+-    wait();
++    wait(NULL);
+   }
+ }
+ 
+@@ -484,9 +484,9 @@ sharedfd(void)
+     }
+   }
+   if(pid == 0)
+-    exit();
++    exit(142);
+   else
+-    wait();
++    wait(NULL);
+   close(fd);
+   fd = open("sharedfd", 0);
+   if(fd < 0){
+@@ -508,7 +508,7 @@ sharedfd(void)
+     printf(1, "sharedfd ok\n");
+   } else {
+     printf(1, "sharedfd oops %d %d\n", nc, np);
+-    exit();
++    exit(141);
+   }
+ }
+ 
+@@ -530,29 +530,29 @@ fourfiles(void)
+     pid = fork();
+     if(pid < 0){
+       printf(1, "fork failed\n");
+-      exit();
++      exit(140);
+     }
+ 
+     if(pid == 0){
+       fd = open(fname, O_CREATE | O_RDWR);
+       if(fd < 0){
+         printf(1, "create failed\n");
+-        exit();
++        exit(139);
+       }
+ 
+       memset(buf, '0'+pi, 512);
+       for(i = 0; i < 12; i++){
+         if((n = write(fd, buf, 500)) != 500){
+           printf(1, "write failed %d\n", n);
+-          exit();
++          exit(138);
+         }
+       }
+-      exit();
++      exit(137);
+     }
+   }
+ 
+   for(pi = 0; pi < 4; pi++){
+-    wait();
++    wait(NULL);
+   }
+ 
+   for(i = 0; i < 2; i++){
+@@ -563,7 +563,7 @@ fourfiles(void)
+       for(j = 0; j < n; j++){
+         if(buf[j] != '0'+i){
+           printf(1, "wrong char\n");
+-          exit();
++          exit(136);
+         }
+       }
+       total += n;
+@@ -571,7 +571,7 @@ fourfiles(void)
+     close(fd);
+     if(total != 12*500){
+       printf(1, "wrong length %d\n", total);
+-      exit();
++      exit(135);
+     }
+     unlink(fname);
+   }
+@@ -593,7 +593,7 @@ createdelete(void)
+     pid = fork();
+     if(pid < 0){
+       printf(1, "fork failed\n");
+-      exit();
++      exit(134);
+     }
+ 
+     if(pid == 0){
+@@ -604,23 +604,23 @@ createdelete(void)
+         fd = open(name, O_CREATE | O_RDWR);
+         if(fd < 0){
+           printf(1, "create failed\n");
+-          exit();
++          exit(133);
+         }
+         close(fd);
+         if(i > 0 && (i % 2 ) == 0){
+           name[1] = '0' + (i / 2);
+           if(unlink(name) < 0){
+             printf(1, "unlink failed\n");
+-            exit();
++            exit(132);
+           }
+         }
+       }
+-      exit();
++      exit(131);
+     }
+   }
+ 
+   for(pi = 0; pi < 4; pi++){
+-    wait();
++    wait(NULL);
+   }
+ 
+   name[0] = name[1] = name[2] = 0;
+@@ -631,10 +631,10 @@ createdelete(void)
+       fd = open(name, 0);
+       if((i == 0 || i >= N/2) && fd < 0){
+         printf(1, "oops createdelete %s didn't exist\n", name);
+-        exit();
++        exit(130);
+       } else if((i >= 1 && i < N/2) && fd >= 0){
+         printf(1, "oops createdelete %s did exist\n", name);
+-        exit();
++        exit(129);
+       }
+       if(fd >= 0)
+         close(fd);
+@@ -662,7 +662,7 @@ unlinkread(void)
+   fd = open("unlinkread", O_CREATE | O_RDWR);
+   if(fd < 0){
+     printf(1, "create unlinkread failed\n");
+-    exit();
++    exit(128);
+   }
+   write(fd, "hello", 5);
+   close(fd);
+@@ -670,11 +670,11 @@ unlinkread(void)
+   fd = open("unlinkread", O_RDWR);
+   if(fd < 0){
+     printf(1, "open unlinkread failed\n");
+-    exit();
++    exit(127);
+   }
+   if(unlink("unlinkread") != 0){
+     printf(1, "unlink unlinkread failed\n");
+-    exit();
++    exit(126);
+   }
+ 
+   fd1 = open("unlinkread", O_CREATE | O_RDWR);
+@@ -683,15 +683,15 @@ unlinkread(void)
+ 
+   if(read(fd, buf, sizeof(buf)) != 5){
+     printf(1, "unlinkread read failed");
+-    exit();
++    exit(125);
+   }
+   if(buf[0] != 'h'){
+     printf(1, "unlinkread wrong data\n");
+-    exit();
++    exit(124);
+   }
+   if(write(fd, buf, 10) != 10){
+     printf(1, "unlinkread write failed\n");
+-    exit();
++    exit(123);
+   }
+   close(fd);
+   unlink("unlinkread");
+@@ -711,50 +711,50 @@ linktest(void)
+   fd = open("lf1", O_CREATE|O_RDWR);
+   if(fd < 0){
+     printf(1, "create lf1 failed\n");
+-    exit();
++    exit(122);
+   }
+   if(write(fd, "hello", 5) != 5){
+     printf(1, "write lf1 failed\n");
+-    exit();
++    exit(121);
+   }
+   close(fd);
+ 
+   if(link("lf1", "lf2") < 0){
+     printf(1, "link lf1 lf2 failed\n");
+-    exit();
++    exit(120);
+   }
+   unlink("lf1");
+ 
+   if(open("lf1", 0) >= 0){
+     printf(1, "unlinked lf1 but it is still there!\n");
+-    exit();
++    exit(119);
+   }
+ 
+   fd = open("lf2", 0);
+   if(fd < 0){
+     printf(1, "open lf2 failed\n");
+-    exit();
++    exit(118);
+   }
+   if(read(fd, buf, sizeof(buf)) != 5){
+     printf(1, "read lf2 failed\n");
+-    exit();
++    exit(117);
+   }
+   close(fd);
+ 
+   if(link("lf2", "lf2") >= 0){
+     printf(1, "link lf2 lf2 succeeded! oops\n");
+-    exit();
++    exit(116);
+   }
+ 
+   unlink("lf2");
+   if(link("lf2", "lf1") >= 0){
+     printf(1, "link non-existant succeeded! oops\n");
+-    exit();
++    exit(115);
+   }
+ 
+   if(link(".", "lf1") >= 0){
+     printf(1, "link . lf1 succeeded! oops\n");
+-    exit();
++    exit(114);
+   }
+ 
+   printf(1, "linktest ok\n");
+@@ -787,14 +787,14 @@ concreate(void)
+       fd = open(file, O_CREATE | O_RDWR);
+       if(fd < 0){
+         printf(1, "concreate create %s failed\n", file);
+-        exit();
++        exit(113);
+       }
+       close(fd);
+     }
+     if(pid == 0)
+-      exit();
++      exit(112);
+     else
+-      wait();
++      wait(NULL);
+   }
+ 
+   memset(fa, 0, sizeof(fa));
+@@ -807,11 +807,11 @@ concreate(void)
+       i = de.name[1] - '0';
+       if(i < 0 || i >= sizeof(fa)){
+         printf(1, "concreate weird file %s\n", de.name);
+-        exit();
++        exit(111);
+       }
+       if(fa[i]){
+         printf(1, "concreate duplicate file %s\n", de.name);
+-        exit();
++        exit(110);
+       }
+       fa[i] = 1;
+       n++;
+@@ -821,7 +821,7 @@ concreate(void)
+ 
+   if(n != 40){
+     printf(1, "concreate not enough files in directory listing\n");
+-    exit();
++    exit(109);
+   }
+ 
+   for(i = 0; i < 40; i++){
+@@ -829,7 +829,7 @@ concreate(void)
+     pid = fork();
+     if(pid < 0){
+       printf(1, "fork failed\n");
+-      exit();
++      exit(108);
+     }
+     if(((i % 3) == 0 && pid == 0) ||
+        ((i % 3) == 1 && pid != 0)){
+@@ -844,9 +844,9 @@ concreate(void)
+       unlink(file);
+     }
+     if(pid == 0)
+-      exit();
++      exit(107);
+     else
+-      wait();
++      wait(NULL);
+   }
+ 
+   printf(1, "concreate ok\n");
+@@ -865,7 +865,7 @@ linkunlink()
+   pid = fork();
+   if(pid < 0){
+     printf(1, "fork failed\n");
+-    exit();
++    exit(106);
+   }
+ 
+   unsigned int x = (pid ? 1 : 97);
+@@ -881,9 +881,9 @@ linkunlink()
+   }
+ 
+   if(pid)
+-    wait();
++    wait(NULL);
+   else
+-    exit();
++    exit(105);
+ 
+   printf(1, "linkunlink ok\n");
+ }
+@@ -901,7 +901,7 @@ bigdir(void)
+   fd = open("bd", O_CREATE);
+   if(fd < 0){
+     printf(1, "bigdir create failed\n");
+-    exit();
++    exit(104);
+   }
+   close(fd);
+ 
+@@ -912,7 +912,7 @@ bigdir(void)
+     name[3] = '\0';
+     if(link("bd", name) != 0){
+       printf(1, "bigdir link failed\n");
+-      exit();
++      exit(103);
+     }
+   }
+ 
+@@ -924,7 +924,7 @@ bigdir(void)
+     name[3] = '\0';
+     if(unlink(name) != 0){
+       printf(1, "bigdir unlink failed");
+-      exit();
++      exit(102);
+     }
+   }
+ 
+@@ -941,31 +941,31 @@ subdir(void)
+   unlink("ff");
+   if(mkdir("dd") != 0){
+     printf(1, "subdir mkdir dd failed\n");
+-    exit();
++    exit(101);
+   }
+ 
+   fd = open("dd/ff", O_CREATE | O_RDWR);
+   if(fd < 0){
+     printf(1, "create dd/ff failed\n");
+-    exit();
++    exit(100);
+   }
+   write(fd, "ff", 2);
+   close(fd);
+ 
+   if(unlink("dd") >= 0){
+     printf(1, "unlink dd (non-empty dir) succeeded!\n");
+-    exit();
++    exit(99);
+   }
+ 
+   if(mkdir("/dd/dd") != 0){
+     printf(1, "subdir mkdir dd/dd failed\n");
+-    exit();
++    exit(98);
+   }
+ 
+   fd = open("dd/dd/ff", O_CREATE | O_RDWR);
+   if(fd < 0){
+     printf(1, "create dd/dd/ff failed\n");
+-    exit();
++    exit(97);
+   }
+   write(fd, "FF", 2);
+   close(fd);
+@@ -973,142 +973,142 @@ subdir(void)
+   fd = open("dd/dd/../ff", 0);
+   if(fd < 0){
+     printf(1, "open dd/dd/../ff failed\n");
+-    exit();
++    exit(96);
+   }
+   cc = read(fd, buf, sizeof(buf));
+   if(cc != 2 || buf[0] != 'f'){
+     printf(1, "dd/dd/../ff wrong content\n");
+-    exit();
++    exit(95);
+   }
+   close(fd);
+ 
+   if(link("dd/dd/ff", "dd/dd/ffff") != 0){
+     printf(1, "link dd/dd/ff dd/dd/ffff failed\n");
+-    exit();
++    exit(94);
+   }
+ 
+   if(unlink("dd/dd/ff") != 0){
+     printf(1, "unlink dd/dd/ff failed\n");
+-    exit();
++    exit(93);
+   }
+   if(open("dd/dd/ff", O_RDONLY) >= 0){
+     printf(1, "open (unlinked) dd/dd/ff succeeded\n");
+-    exit();
++    exit(92);
+   }
+ 
+   if(chdir("dd") != 0){
+     printf(1, "chdir dd failed\n");
+-    exit();
++    exit(91);
+   }
+   if(chdir("dd/../../dd") != 0){
+     printf(1, "chdir dd/../../dd failed\n");
+-    exit();
++    exit(90);
+   }
+   if(chdir("dd/../../../dd") != 0){
+     printf(1, "chdir dd/../../dd failed\n");
+-    exit();
++    exit(89);
+   }
+   if(chdir("./..") != 0){
+     printf(1, "chdir ./.. failed\n");
+-    exit();
++    exit(88);
+   }
+ 
+   fd = open("dd/dd/ffff", 0);
+   if(fd < 0){
+     printf(1, "open dd/dd/ffff failed\n");
+-    exit();
++    exit(87);
+   }
+   if(read(fd, buf, sizeof(buf)) != 2){
+     printf(1, "read dd/dd/ffff wrong len\n");
+-    exit();
++    exit(86);
+   }
+   close(fd);
+ 
+   if(open("dd/dd/ff", O_RDONLY) >= 0){
+     printf(1, "open (unlinked) dd/dd/ff succeeded!\n");
+-    exit();
++    exit(0);
+   }
+ 
+   if(open("dd/ff/ff", O_CREATE|O_RDWR) >= 0){
+     printf(1, "create dd/ff/ff succeeded!\n");
+-    exit();
++    exit(0);
+   }
+   if(open("dd/xx/ff", O_CREATE|O_RDWR) >= 0){
+     printf(1, "create dd/xx/ff succeeded!\n");
+-    exit();
++    exit(0);
+   }
+   if(open("dd", O_CREATE) >= 0){
+     printf(1, "create dd succeeded!\n");
+-    exit();
++    exit(0);
+   }
+   if(open("dd", O_RDWR) >= 0){
+     printf(1, "open dd rdwr succeeded!\n");
+-    exit();
++    exit(0);
+   }
+   if(open("dd", O_WRONLY) >= 0){
+     printf(1, "open dd wronly succeeded!\n");
+-    exit();
++    exit(0);
+   }
+   if(link("dd/ff/ff", "dd/dd/xx") == 0){
+     printf(1, "link dd/ff/ff dd/dd/xx succeeded!\n");
+-    exit();
++    exit(0);
+   }
+   if(link("dd/xx/ff", "dd/dd/xx") == 0){
+     printf(1, "link dd/xx/ff dd/dd/xx succeeded!\n");
+-    exit();
++    exit(0);
+   }
+   if(link("dd/ff", "dd/dd/ffff") == 0){
+     printf(1, "link dd/ff dd/dd/ffff succeeded!\n");
+-    exit();
++    exit(0);
+   }
+   if(mkdir("dd/ff/ff") == 0){
+     printf(1, "mkdir dd/ff/ff succeeded!\n");
+-    exit();
++    exit(0);
+   }
+   if(mkdir("dd/xx/ff") == 0){
+     printf(1, "mkdir dd/xx/ff succeeded!\n");
+-    exit();
++    exit(0);
+   }
+   if(mkdir("dd/dd/ffff") == 0){
+     printf(1, "mkdir dd/dd/ffff succeeded!\n");
+-    exit();
++    exit(0);
+   }
+   if(unlink("dd/xx/ff") == 0){
+     printf(1, "unlink dd/xx/ff succeeded!\n");
+-    exit();
++    exit(0);
+   }
+   if(unlink("dd/ff/ff") == 0){
+     printf(1, "unlink dd/ff/ff succeeded!\n");
+-    exit();
++    exit(0);
+   }
+   if(chdir("dd/ff") == 0){
+     printf(1, "chdir dd/ff succeeded!\n");
+-    exit();
++    exit(0);
+   }
+   if(chdir("dd/xx") == 0){
+     printf(1, "chdir dd/xx succeeded!\n");
+-    exit();
++    exit(0);
+   }
+ 
+   if(unlink("dd/dd/ffff") != 0){
+     printf(1, "unlink dd/dd/ff failed\n");
+-    exit();
++    exit(68);
+   }
+   if(unlink("dd/ff") != 0){
+     printf(1, "unlink dd/ff failed\n");
+-    exit();
++    exit(67);
+   }
+   if(unlink("dd") == 0){
+     printf(1, "unlink non-empty dd succeeded!\n");
+-    exit();
++    exit(0);
+   }
+   if(unlink("dd/dd") < 0){
+     printf(1, "unlink dd/dd failed\n");
+-    exit();
++    exit(65);
+   }
+   if(unlink("dd") < 0){
+     printf(1, "unlink dd failed\n");
+-    exit();
++    exit(64);
+   }
+ 
+   printf(1, "subdir ok\n");
+@@ -1127,14 +1127,14 @@ bigwrite(void)
+     fd = open("bigwrite", O_CREATE | O_RDWR);
+     if(fd < 0){
+       printf(1, "cannot create bigwrite\n");
+-      exit();
++      exit(63);
+     }
+     int i;
+     for(i = 0; i < 2; i++){
+       int cc = write(fd, buf, sz);
+       if(cc != sz){
+         printf(1, "write(%d) ret %d\n", sz, cc);
+-        exit();
++        exit(62);
+       }
+     }
+     close(fd);
+@@ -1155,13 +1155,13 @@ bigfile(void)
+   fd = open("bigfile", O_CREATE | O_RDWR);
+   if(fd < 0){
+     printf(1, "cannot create bigfile");
+-    exit();
++    exit(61);
+   }
+   for(i = 0; i < 20; i++){
+     memset(buf, i, 600);
+     if(write(fd, buf, 600) != 600){
+       printf(1, "write bigfile failed\n");
+-      exit();
++      exit(60);
+     }
+   }
+   close(fd);
+@@ -1169,31 +1169,31 @@ bigfile(void)
+   fd = open("bigfile", 0);
+   if(fd < 0){
+     printf(1, "cannot open bigfile\n");
+-    exit();
++    exit(59);
+   }
+   total = 0;
+   for(i = 0; ; i++){
+     cc = read(fd, buf, 300);
+     if(cc < 0){
+       printf(1, "read bigfile failed\n");
+-      exit();
++      exit(58);
+     }
+     if(cc == 0)
+       break;
+     if(cc != 300){
+       printf(1, "short read bigfile\n");
+-      exit();
++      exit(57);
+     }
+     if(buf[0] != i/2 || buf[299] != i/2){
+       printf(1, "read bigfile wrong data\n");
+-      exit();
++      exit(56);
+     }
+     total += cc;
+   }
+   close(fd);
+   if(total != 20*600){
+     printf(1, "read bigfile wrong total\n");
+-    exit();
++    exit(55);
+   }
+   unlink("bigfile");
+ 
+@@ -1210,32 +1210,32 @@ fourteen(void)
+ 
+   if(mkdir("12345678901234") != 0){
+     printf(1, "mkdir 12345678901234 failed\n");
+-    exit();
++    exit(54);
+   }
+   if(mkdir("12345678901234/123456789012345") != 0){
+     printf(1, "mkdir 12345678901234/123456789012345 failed\n");
+-    exit();
++    exit(53);
+   }
+   fd = open("123456789012345/123456789012345/123456789012345", O_CREATE);
+   if(fd < 0){
+     printf(1, "create 123456789012345/123456789012345/123456789012345 failed\n");
+-    exit();
++    exit(52);
+   }
+   close(fd);
+   fd = open("12345678901234/12345678901234/12345678901234", 0);
+   if(fd < 0){
+     printf(1, "open 12345678901234/12345678901234/12345678901234 failed\n");
+-    exit();
++    exit(51);
+   }
+   close(fd);
+ 
+   if(mkdir("12345678901234/12345678901234") == 0){
+     printf(1, "mkdir 12345678901234/12345678901234 succeeded!\n");
+-    exit();
++    exit(0);
+   }
+   if(mkdir("123456789012345/12345678901234") == 0){
+     printf(1, "mkdir 12345678901234/123456789012345 succeeded!\n");
+-    exit();
++    exit(0);
+   }
+ 
+   printf(1, "fourteen ok\n");
+@@ -1247,35 +1247,35 @@ rmdot(void)
+   printf(1, "rmdot test\n");
+   if(mkdir("dots") != 0){
+     printf(1, "mkdir dots failed\n");
+-    exit();
++    exit(48);
+   }
+   if(chdir("dots") != 0){
+     printf(1, "chdir dots failed\n");
+-    exit();
++    exit(47);
+   }
+   if(unlink(".") == 0){
+     printf(1, "rm . worked!\n");
+-    exit();
++    exit(0);
+   }
+   if(unlink("..") == 0){
+     printf(1, "rm .. worked!\n");
+-    exit();
++    exit(0);
+   }
+   if(chdir("/") != 0){
+     printf(1, "chdir / failed\n");
+-    exit();
++    exit(44);
+   }
+   if(unlink("dots/.") == 0){
+     printf(1, "unlink dots/. worked!\n");
+-    exit();
++    exit(0);
+   }
+   if(unlink("dots/..") == 0){
+     printf(1, "unlink dots/.. worked!\n");
+-    exit();
++    exit(0);
+   }
+   if(unlink("dots") != 0){
+     printf(1, "unlink dots failed!\n");
+-    exit();
++    exit(41);
+   }
+   printf(1, "rmdot ok\n");
+ }
+@@ -1290,49 +1290,49 @@ dirfile(void)
+   fd = open("dirfile", O_CREATE);
+   if(fd < 0){
+     printf(1, "create dirfile failed\n");
+-    exit();
++    exit(40);
+   }
+   close(fd);
+   if(chdir("dirfile") == 0){
+     printf(1, "chdir dirfile succeeded!\n");
+-    exit();
++    exit(0);
+   }
+   fd = open("dirfile/xx", 0);
+   if(fd >= 0){
+     printf(1, "create dirfile/xx succeeded!\n");
+-    exit();
++    exit(0);
+   }
+   fd = open("dirfile/xx", O_CREATE);
+   if(fd >= 0){
+     printf(1, "create dirfile/xx succeeded!\n");
+-    exit();
++    exit(0);
+   }
+   if(mkdir("dirfile/xx") == 0){
+     printf(1, "mkdir dirfile/xx succeeded!\n");
+-    exit();
++    exit(0);
+   }
+   if(unlink("dirfile/xx") == 0){
+     printf(1, "unlink dirfile/xx succeeded!\n");
+-    exit();
++    exit(0);
+   }
+   if(link("README", "dirfile/xx") == 0){
+     printf(1, "link to dirfile/xx succeeded!\n");
+-    exit();
++    exit(0);
+   }
+   if(unlink("dirfile") != 0){
+     printf(1, "unlink dirfile failed!\n");
+-    exit();
++    exit(33);
+   }
+ 
+   fd = open(".", O_RDWR);
+   if(fd >= 0){
+     printf(1, "open . for writing succeeded!\n");
+-    exit();
++    exit(0);
+   }
+   fd = open(".", 0);
+   if(write(fd, "x", 1) > 0){
+     printf(1, "write . succeeded!\n");
+-    exit();
++    exit(0);
+   }
+   close(fd);
+ 
+@@ -1351,11 +1351,11 @@ iref(void)
+   for(i = 0; i < 50 + 1; i++){
+     if(mkdir("irefd") != 0){
+       printf(1, "mkdir irefd failed\n");
+-      exit();
++      exit(30);
+     }
+     if(chdir("irefd") != 0){
+       printf(1, "chdir irefd failed\n");
+-      exit();
++      exit(29);
+     }
+ 
+     mkdir("");
+@@ -1388,24 +1388,24 @@ forktest(void)
+     if(pid < 0)
+       break;
+     if(pid == 0)
+-      exit();
++      exit(28);
+   }
+ 
+   if(n == 1000){
+     printf(1, "fork claimed to work 1000 times!\n");
+-    exit();
++    exit(27);
+   }
+ 
+   for(; n > 0; n--){
+-    if(wait() < 0){
++    if(wait(NULL) < 0){
+       printf(1, "wait stopped early\n");
+-      exit();
++      exit(26);
+     }
+   }
+ 
+-  if(wait() != -1){
++  if(wait(NULL) != -1){
+     printf(1, "wait got too many\n");
+-    exit();
++    exit(25);
+   }
+ 
+   printf(1, "fork test OK\n");
+@@ -1428,7 +1428,7 @@ sbrktest(void)
+     b = sbrk(1);
+     if(b != a){
+       printf(stdout, "sbrk test failed %d %x %x\n", i, a, b);
+-      exit();
++      exit(24);
+     }
+     *b = 1;
+     a = b + 1;
+@@ -1436,17 +1436,17 @@ sbrktest(void)
+   pid = fork();
+   if(pid < 0){
+     printf(stdout, "sbrk test fork failed\n");
+-    exit();
++    exit(23);
+   }
+   c = sbrk(1);
+   c = sbrk(1);
+   if(c != a + 1){
+     printf(stdout, "sbrk test failed post-fork\n");
+-    exit();
++    exit(22);
+   }
+   if(pid == 0)
+-    exit();
+-  wait();
++    exit(21);
++  wait(NULL);
+ 
+   // can one grow address space to something big?
+ #define BIG (100*1024*1024)
+@@ -1455,7 +1455,7 @@ sbrktest(void)
+   p = sbrk(amt);
+   if (p != a) {
+     printf(stdout, "sbrk test failed to grow big address space; enough phys mem?\n");
+-    exit();
++    exit(20);
+   }
+   lastaddr = (char*) (BIG-1);
+   *lastaddr = 99;
+@@ -1465,12 +1465,12 @@ sbrktest(void)
+   c = sbrk(-4096);
+   if(c == (char*)0xffffffff){
+     printf(stdout, "sbrk could not deallocate\n");
+-    exit();
++    exit(19);
+   }
+   c = sbrk(0);
+   if(c != a - 4096){
+     printf(stdout, "sbrk deallocation produced wrong address, a %x c %x\n", a, c);
+-    exit();
++    exit(18);
+   }
+ 
+   // can one re-allocate that page?
+@@ -1478,19 +1478,19 @@ sbrktest(void)
+   c = sbrk(4096);
+   if(c != a || sbrk(0) != a + 4096){
+     printf(stdout, "sbrk re-allocation failed, a %x c %x\n", a, c);
+-    exit();
++    exit(17);
+   }
+   if(*lastaddr == 99){
+     // should be zero
+     printf(stdout, "sbrk de-allocation didn't really deallocate\n");
+-    exit();
++    exit(16);
+   }
+ 
+   a = sbrk(0);
+   c = sbrk(-(sbrk(0) - oldbrk));
+   if(c != a){
+     printf(stdout, "sbrk downsize failed, a %x c %x\n", a, c);
+-    exit();
++    exit(15);
+   }
+ 
+   // can we read the kernel's memory?
+@@ -1499,21 +1499,21 @@ sbrktest(void)
+     pid = fork();
+     if(pid < 0){
+       printf(stdout, "fork failed\n");
+-      exit();
++      exit(14);
+     }
+     if(pid == 0){
+       printf(stdout, "oops could read %x = %x\n", a, *a);
+       kill(ppid);
+-      exit();
++      exit(13);
+     }
+-    wait();
++    wait(NULL);
+   }
+ 
+   // if we run the system out of memory, does it clean up the last
+   // failed allocation?
+   if(pipe(fds) != 0){
+     printf(1, "pipe() failed\n");
+-    exit();
++    exit(12);
+   }
+   for(i = 0; i < sizeof(pids)/sizeof(pids[0]); i++){
+     if((pids[i] = fork()) == 0){
+@@ -1533,11 +1533,11 @@ sbrktest(void)
+     if(pids[i] == -1)
+       continue;
+     kill(pids[i]);
+-    wait();
++    wait(NULL);
+   }
+   if(c == (char*)0xffffffff){
+     printf(stdout, "failed sbrk leaked memory\n");
+-    exit();
++    exit(10);
+   }
+ 
+   if(sbrk(0) > oldbrk)
+@@ -1572,17 +1572,17 @@ validatetest(void)
+     if((pid = fork()) == 0){
+       // try to crash the kernel by passing in a badly placed integer
+       validateint((int*)p);
+-      exit();
++      exit(9);
+     }
+     sleep(0);
+     sleep(0);
+     kill(pid);
+-    wait();
++    wait(NULL);
+ 
+     // try to crash the kernel by passing in a bad string pointer
+     if(link("nosuchfile", (char*)p) != -1){
+       printf(stdout, "link should not succeed\n");
+-      exit();
++      exit(8);
+     }
+   }
+ 
+@@ -1600,7 +1600,7 @@ bsstest(void)
+   for(i = 0; i < sizeof(uninit); i++){
+     if(uninit[i] != '\0'){
+       printf(stdout, "bss test failed\n");
+-      exit();
++      exit(7);
+     }
+   }
+   printf(stdout, "bss test ok\n");
+@@ -1627,16 +1627,16 @@ bigargtest(void)
+     printf(stdout, "bigarg test ok\n");
+     fd = open("bigarg-ok", O_CREATE);
+     close(fd);
+-    exit();
++    exit(6);
+   } else if(pid < 0){
+     printf(stdout, "bigargtest: fork failed\n");
+-    exit();
++    exit(5);
+   }
+-  wait();
++  wait(NULL);
+   fd = open("bigarg-ok", 0);
+   if(fd < 0){
+     printf(stdout, "bigarg test failed!\n");
+-    exit();
++    exit(4);
+   }
+   close(fd);
+   unlink("bigarg-ok");
+@@ -1715,12 +1715,12 @@ uio()
+     port = RTC_DATA;
+     asm volatile("inb %1,%0" : "=a" (val) : "d" (port));
+     printf(1, "uio: uio succeeded; test FAILED\n");
+-    exit();
++    exit(3);
+   } else if(pid < 0){
+     printf (1, "fork failed\n");
+-    exit();
++    exit(2);
+   }
+-  wait();
++  wait(NULL);
+   printf(1, "uio test done\n");
+ }
+ 
+@@ -1730,7 +1730,7 @@ void argptest()
+   fd = open("init", O_RDONLY);
+   if (fd < 0) {
+     printf(2, "open failed\n");
+-    exit();
++    exit(1);
+   }
+   read(fd, sbrk(0) - 1, -1);
+   close(fd);
+@@ -1752,7 +1752,7 @@ main(int argc, char *argv[])
+ 
+   if(open("usertests.ran", 0) >= 0){
+     printf(1, "already ran user tests -- rebuild fs.img\n");
+-    exit();
++    exit(1);
+   }
+   close(open("usertests.ran", O_CREATE));
+ 
+@@ -1799,5 +1799,5 @@ main(int argc, char *argv[])
+ 
+   exectest();
+ 
+-  exit();
++  exit(0);
+ }
+diff --git a/usys.S b/usys.S
+index 8bfd8a1..1687ed0 100644
+--- a/usys.S
++++ b/usys.S
+@@ -11,6 +11,7 @@
+ SYSCALL(fork)
+ SYSCALL(exit)
+ SYSCALL(wait)
++SYSCALL(waitpid)
+ SYSCALL(pipe)
+ SYSCALL(read)
+ SYSCALL(write)
+diff --git a/vectors.pl b/vectors.pl
+old mode 100755
+new mode 100644
+diff --git a/wc.c b/wc.c
+index d6a54df..08b93b6 100644
+--- a/wc.c
++++ b/wc.c
+@@ -27,7 +27,7 @@ wc(int fd, char *name)
+   }
+   if(n < 0){
+     printf(1, "wc: read error\n");
+-    exit();
++    exit(3);
+   }
+   printf(1, "%d %d %d %s\n", l, w, c, name);
+ }
+@@ -39,16 +39,16 @@ main(int argc, char *argv[])
+ 
+   if(argc <= 1){
+     wc(0, "");
+-    exit();
++    exit(2);
+   }
+ 
+   for(i = 1; i < argc; i++){
+     if((fd = open(argv[i], 0)) < 0){
+       printf(1, "wc: cannot open %s\n", argv[i]);
+-      exit();
++      exit(1);
+     }
+     wc(fd, argv[i]);
+     close(fd);
+   }
+-  exit();
++  exit(0);
+ }
+diff --git a/zombie.c b/zombie.c
+index ee817da..c96b92d 100644
+--- a/zombie.c
++++ b/zombie.c
+@@ -10,5 +10,5 @@ main(void)
+ {
+   if(fork() > 0)
+     sleep(5);  // Let child exit before parent.
+-  exit();
++  exit(0);
+ }
