@@ -25,7 +25,7 @@ int main(int argc, char **argv) {
     if(pid > 0)
     {
         waitpid(pid, NULL, 0);
-        printf(1, "Grandpa says it's time to sleep! PID: %d\n", pid);:
+        printf(1, "Grandpa says it's time to sleep! PID: %d\n", pid);
         exit(0);
     }
 
