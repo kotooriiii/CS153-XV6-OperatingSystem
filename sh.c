@@ -186,6 +186,7 @@ fork1(void)
   pid = fork();
   if(pid == -1)
     panic("fork");
+
   return pid;
 }
 
