@@ -8,90 +8,96 @@
 #include "proc.h"
 
 int
-sys_fork(void)
-{
-  return fork();
+sys_fork(void) {
+    return fork();
 }
 
 int
-sys_exit(int status)
-{
-  exit(status);
-  return 0;  // not reached
+sys_exit(int status0) {
+
+    int status;
+    argint(0, &status);
+
+    exit(status);
+    return 0;  // not reached
 }
 
 int
-sys_wait(int* status)
-{
-  return wait(status);
+sys_wait(int *status0) {
+    int *status = status0;
+    argint(0, status);
+    return wait(status);
 }
 
 int
-sys_waitpid(int pid, int* status, int options)
-{
+sys_waitpid(int pid0, int *status1, int options2) {
+    int pid = pid0;
+    argint(0, &pid);
+
+    int *status = status1;
+    argint(1, status);
+
+    int options = options2;
+    argint(2, &options);
+
     return waitpid(pid, status, options);
 }
 
 int
-sys_kill(void)
-{
-  int pid;
+sys_kill(void) {
+    int pid;
 
-  if(argint(0, &pid) < 0)
-    return -1;
-  return kill(pid);
+    if (argint(0, &pid) < 0)
+        return -1;
+    return kill(pid);
 }
 
 int
-sys_getpid(void)
-{
-  return myproc()->pid;
+sys_getpid(void) {
+    return myproc()->pid;
 }
 
 int
-sys_sbrk(void)
-{
-  int addr;
-  int n;
+sys_sbrk(void) {
+    int addr;
+    int n;
 
-  if(argint(0, &n) < 0)
-    return -1;
-  addr = myproc()->sz;
-  if(growproc(n) < 0)
-    return -1;
-  return addr;
+    if (argint(0, &n) < 0)
+        return -1;
+    addr = myproc()->sz;
+    if (growproc(n) < 0)
+        return -1;
+    return addr;
 }
 
 int
-sys_sleep(void)
-{
-  int n;
-  uint ticks0;
+sys_sleep(void) {
+    int n;
+    uint ticks0;
 
-  if(argint(0, &n) < 0)
-    return -1;
-  acquire(&tickslock);
-  ticks0 = ticks;
-  while(ticks - ticks0 < n){
-    if(myproc()->killed){
-      release(&tickslock);
-      return -1;
+    if (argint(0, &n) < 0)
+        return -1;
+    acquire(&tickslock);
+    ticks0 = ticks;
+    while (ticks - ticks0 < n) {
+        if (myproc()->killed) {
+            release(&tickslock);
+            return -1;
+        }
+        sleep(&ticks, &tickslock);
     }
-    sleep(&ticks, &tickslock);
-  }
-  release(&tickslock);
-  return 0;
+    release(&tickslock);
+    return 0;
 }
 
 // return how many clock tick interrupts have occurred
 // since start.
 int
-sys_uptime(void)
-{
-  uint xticks;
+sys_uptime(void) {
+    uint xticks;
 
-  acquire(&tickslock);
-  xticks = ticks;
-  release(&tickslock);
-  return xticks;
+    acquire(&tickslock);
+    xticks = ticks;
+    release(&tickslock);
+    return xticks;
 }

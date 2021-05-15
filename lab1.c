@@ -22,25 +22,26 @@ int main(int argc, char **argv) {
 
     pid = fork();
 
-    if(pid > 0)
+    if(pid > 0) //Only grandpa comes in here, grandpa waits for the parent
     {
         waitpid(pid, NULL, 0);
         printf(1, "Grandpa says it's time to sleep! PID: %d\n", pid);
         exit(0);
     }
 
+    //Parent comes down here
 
     pid = fork();
 
+    //The child comes here
     if(pid == 0)
     {
         printf(1, "I'm the child! PID: %d\n", pid);
     }
-    else
+    else //The parent comes here
     {
-        printf(1, "I'm the parent! PID: %d\n", pid);
         waitpid(pid, NULL, 0);
-
+        printf(1, "I'm the parent! PID: %d\n", pid);
     }
 
 
