@@ -25,8 +25,9 @@ int main(int argc, char **argv) {
 
     if(pid > 0) //Only grandpa comes in here, grandpa waits for the parent
     {
-        waitpid(pid, NULL, 0);
-        printf(1, "Grandpa says it's time to sleep! PID: %d\n", pid);
+        int exitCode;
+        int pidR = waitpid(pid, &exitCode, 0);
+        printf(1, "Grandpa says it's time to sleep! PID: %d, ExitCode: %d, PIDReturn: %d\n", pid, exitCode, pidR);
         exit(0);
     }
 
@@ -47,7 +48,7 @@ int main(int argc, char **argv) {
     }
 
 
-    exit(0);
+    exit(1);
 }
 //    printf(1, "Waitpid Demo Initializing...\n"); // fd=1 means standard output.
 //

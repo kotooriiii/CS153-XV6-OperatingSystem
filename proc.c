@@ -293,9 +293,10 @@ wait(int *status) {
                 p->name[0] = 0;
                 p->killed = 0;
                 p->state = UNUSED;
-                release(&ptable.lock);
                 if (status != NULL)
                     *status = p->status;
+                release(&ptable.lock);
+
                 return pid;
             }
         }
@@ -344,9 +345,10 @@ waitpid(int pidBeingSearchedFor, int *status, int options) {
                 p->name[0] = 0;
                 p->killed = 0;
                 p->state = UNUSED;
-                release(&ptable.lock);
+
                 if (status != NULL)
                     *status = p->status;
+                release(&ptable.lock);
                 return pidFound;
             }
         }
@@ -358,6 +360,7 @@ waitpid(int pidBeingSearchedFor, int *status, int options) {
 //        }
 
         if (!doesProcExist || curproc->killed) {
+
             release(&ptable.lock);
             return -1;
         }

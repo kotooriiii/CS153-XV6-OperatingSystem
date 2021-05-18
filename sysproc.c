@@ -24,9 +24,11 @@ sys_exit(int status0) {
 
 int
 sys_wait(int *status0) {
-    int *status = status0;
-    argint(0, status);
-    return wait(status);
+
+    char* c;
+    argptr(0,&c,4);
+    int* s = (int*)c;
+    return wait(s);
 }
 
 int
@@ -34,13 +36,14 @@ sys_waitpid(int pid0, int *status1, int options2) {
     int pid = pid0;
     argint(0, &pid);
 
-    int *status = status1;
-    argint(1, status);
+    char* c;
+    argptr(1,&c,4);
+    int* s = (int*)c;
 
     int options = options2;
     argint(2, &options);
 
-    return waitpid(pid, status, options);
+    return waitpid(pid, s, options);
 }
 
 int
