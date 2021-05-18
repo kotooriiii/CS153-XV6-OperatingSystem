@@ -21,6 +21,7 @@ int main(int argc, char **argv) {
     int pid;
 
     pid = fork();
+    //Two running processes: The parent and child.
 
     if(pid > 0) //Only grandpa comes in here, grandpa waits for the parent
     {
@@ -29,9 +30,10 @@ int main(int argc, char **argv) {
         exit(0);
     }
 
-    //Parent comes down here
+    //Child comes down here
 
     pid = fork();
+    //3 running processes: The grandpa, parent and child. but grandpa is stuck on line 28
 
     //The child comes here
     if(pid == 0)
@@ -68,3 +70,4 @@ int main(int argc, char **argv) {
 //
 //    exit(0);
 //}
+

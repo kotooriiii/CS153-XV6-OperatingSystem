@@ -330,6 +330,8 @@ waitpid(int pidBeingSearchedFor, int *status, int options) {
             if (p->pid != pidBeingSearchedFor)
                 continue;
 
+            //We found the PID of the child
+
             doesProcExist = 1;
             if (p->state == ZOMBIE) {
                 // Found one.
