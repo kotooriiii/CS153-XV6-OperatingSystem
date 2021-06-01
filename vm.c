@@ -281,6 +281,17 @@ freevm(pde_t *pgdir) {
     kfree((char *) pgdir);
 }
 
+void
+setpteu(pde_t *pgdir, char *uva)
+{
+    pte_t *pte;
+
+    pte = walkpgdir(pgdir, uva, 0);
+    if(pte == 0)
+        panic("setpteu");
+    *pte |= PTE_U;
+}
+
 // Clear PTE_U on a page. Used to create an inaccessible
 // page beneath the user stack.
 void
@@ -339,6 +350,30 @@ copyuvm(pde_t *pgdir, uint sz, uint stackTop) {
 
     bad:
     freevm(d);
+    return 0;
+}
+
+int growstack(pde_t *pgdir, uint sp, uint topStack)
+{
+    pte_t *pte;
+    uint newTop = topStack - PGSIZE;
+
+    if (sp > (topStack + PGSIZE))
+        return -1;
+
+
+    // don't allocate new memory if already present
+    if((pte = walkpgdir(pgdir, (void *) newTop, 1)) == 0)
+        return -1;
+    if(*pte & PTE_P)
+        return -1;
+    if(allocuvm(pgdir, newTop, topStack) == 0)
+        return -1;
+
+    struct proc *proc = myproc();
+    proc->topOfStack = proc->topOfStack - PGSIZE;
+    setpteu(proc->pgdir, (char *)(proc->topOfStack + PGSIZE));
+    clearpteu(proc->pgdir, (char *)proc->topOfStack);
     return 0;
 }
 
