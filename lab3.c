@@ -16,9 +16,11 @@
 #include "types.h"
 #include "user.h"
 
-int main(int argc, char **argv) {
+int main(int argc, char *argv[]) {
 
     int v = argc;
+
+    printf(1, "%d",sizeof(*argv) / sizeof(*argv[0]));
     printf(1, "%p\n", &v);
     exit();
 }
