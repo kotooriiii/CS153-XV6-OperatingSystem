@@ -47,7 +47,7 @@ int shm_open(int id, char **pointer) {
             return 0; //Break out of loop
         }
     }
-    //Case 2: Shared Memoery
+    //Case 2: Shared Memory does not exist
     for (i = 0; i < 64; i++) {
         if (shm_table.shm_pages[i].id == 0) {
             shm_table.shm_pages[i].id = id;
