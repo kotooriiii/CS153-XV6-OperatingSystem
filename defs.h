@@ -180,14 +180,11 @@ int             deallocuvm(pde_t*, uint, uint);
 void            freevm(pde_t*);
 void            inituvm(pde_t*, char*, uint);
 int             loaduvm(pde_t*, char*, struct inode*, uint, uint);
-pde_t*          copyuvm(pde_t*, uint, uint);
+pde_t*          copyuvm(pde_t*, uint);
 void            switchuvm(struct proc*);
 void            switchkvm(void);
 int             copyout(pde_t*, uint, void*, uint);
 void            clearpteu(pde_t *pgdir, char *uva);
-int             growstack(pde_t *pgdir, uint sp, uint topStack);
-void            setpteu(pde_t *pgdir, char *uva);
-
 
 //made mappages visible (and removed static) to facilitate implementing shm
 int
