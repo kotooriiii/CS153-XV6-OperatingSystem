@@ -30,32 +30,34 @@ void shminit() {
 
 int shm_open(int id, char **pointer) {
 
-//you write this
     int i;
     acquire(&(shm_table.lock)); //acquire lock
-//Case 1:
-//Loop through the 64 pages and see if the segment id already exists
+    //Case 1:
+    //Iterate 64 pages and check whether segment id  exists
     for (i = 0; i < 64; i++) {
+        //Found, it exists! ID MATCH
         if (shm_table.shm_pages[i].id == id) {
-//Increase reference count
-            mappages(myproc()->pgdir, (char *) PGROUNDUP(myproc()->sz), PGSIZE,V2P(shm_table.shm_pages[i].frame), PTE_W | PTE_U);
+            //Increase ref. count
+            mappages(myproc()->pgdir, (char *) PGROUNDUP(myproc()->sz), PGSIZE, V2P(shm_table.shm_pages[i].frame),
+                     PTE_W | PTE_U);
             shm_table.shm_pages[i].refcnt++;
-            *pointer = (char *) PGROUNDUP(myproc()->sz); // return the pointer
-            myproc()->sz += PGSIZE; //Update sz PG size since virtual address space expanded
+            *pointer = (char *) PGROUNDUP(myproc()->sz); // return ptr
+            myproc()->sz += PGSIZE; //Update process sz too add PG size due to virtual address space being increased
             release(&(shm_table.lock));
-            return 0; //This done nothing
+            return 0; //Break out of loop
         }
     }
-//Case 2: Shared MEMORY DNE
+    //Case 2: Shared Memoery
     for (i = 0; i < 64; i++) {
         if (shm_table.shm_pages[i].id == 0) {
             shm_table.shm_pages[i].id = id;
             shm_table.shm_pages[i].frame = kalloc();
             shm_table.shm_pages[i].refcnt = 1;
             memset(shm_table.shm_pages[i].frame, 0, PGSIZE);
-            mappages(myproc()->pgdir, (char *) PGROUNDUP(myproc()->sz), PGSIZE,V2P(shm_table.shm_pages[i].frame), PTE_W | PTE_U);
-            *pointer = (char *) PGROUNDUP(myproc()->sz); // return the pointer
-            myproc()->sz += PGSIZE; //Update sz PG size sinc virtual address spacee xpanded
+            mappages(myproc()->pgdir, (char *) PGROUNDUP(myproc()->sz), PGSIZE, V2P(shm_table.shm_pages[i].frame),
+                     PTE_W | PTE_U);
+            *pointer = (char *) PGROUNDUP(myproc()->sz); // return the ptr
+            myproc()->sz += PGSIZE; //Update process sz too add PG size due to virtual address space being increased
             release(&(shm_table.lock));
             return 0; //This does nothing
         }
@@ -66,22 +68,20 @@ int shm_open(int id, char **pointer) {
 
 
 int shm_close(int id) {
-//you write this too!
 
     int i;
-    initlock(&(shm_table.lock), "SHM lock");
+    initlock(&(shm_table.lock), "SHM lock"); //reinitialize lock
     acquire(&(shm_table.lock));
     for (i = 0; i < 64; i++) {
-        if (shm_table.shm_pages[i].id == id) {
-            shm_table.shm_pages[i].refcnt--;
-            if (shm_table.shm_pages[i].refcnt == 0) {
+        if (shm_table.shm_pages[i].id == id) { //We found page id that matches the one we closing
+            shm_table.shm_pages[i].refcnt--; //Decrease ref count
+            if (shm_table.shm_pages[i].refcnt == 0) { //If ref count is 0, clear table
                 shm_table.shm_pages[i].id = 0;
                 shm_table.shm_pages[i].frame = 0;
                 shm_table.shm_pages[i].refcnt = 0;
             }
         }
     }
-
 
 
     release(&(shm_table.lock));
