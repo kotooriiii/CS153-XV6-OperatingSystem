@@ -13,7 +13,7 @@ int main(int argc, char *argv[])
 int pid;
 int i=0;
 struct shm_cnt *counter;
-  pid=fork();
+      pid=fork();
   sleep(1);
 
 //shm_open: first process will create the page, the second will just attach to the same page

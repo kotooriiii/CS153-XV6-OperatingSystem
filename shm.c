@@ -32,7 +32,7 @@ int shm_open(int id, char **pointer) {
 
     int i;
     acquire(&(shm_table.lock)); //acquire lock
-    //Case 1:
+    //Case 1: Exists within pages
     //Iterate 64 pages and check whether segment id  exists
     for (i = 0; i < 64; i++) {
         //Found, it exists! ID MATCH
